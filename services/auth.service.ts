@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/axios";
-import { ApiResponse, AuthResponse, UserProfile } from "@/types/auth.types";
 import { LoginFields, SignupFields } from "@/schemas/auth.schema";
+import { ApiResponse, AuthResponse, UserProfile } from "@/types/auth.types";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -10,6 +10,7 @@ export const authService = {
    */
   async login(credentials: LoginFields): Promise<ApiResponse<AuthResponse>> {
     const response = await apiClient.post("/api/auth/login", credentials);
+    // error to be rsolved
     return {
       success: true,
       data: response.data,

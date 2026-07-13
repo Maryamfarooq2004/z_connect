@@ -28,7 +28,8 @@ export default function SignupPage() {
   } = useForm<SignupFields>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      fullName: "",
+      firstName: "",
+      lastName: "",
       username: "",
       email: "",
       password: "",
@@ -77,17 +78,31 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-mono uppercase tracking-widest text-text-secondary pl-0.5">
-              Full Name
-            </label>
-            <Input
-              type="text"
-              placeholder="e.g. Avery Jenkins"
-              error={errors.fullName?.message}
-              disabled={isLoading}
-              {...register("fullName")}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-mono uppercase tracking-widest text-text-secondary pl-0.5">
+                First Name
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Avery"
+                error={errors.firstName?.message}
+                disabled={isLoading}
+                {...register("firstName")}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-mono uppercase tracking-widest text-text-secondary pl-0.5">
+                Last Name
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Jenkins"
+                error={errors.lastName?.message}
+                disabled={isLoading}
+                {...register("lastName")}
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">

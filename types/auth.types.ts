@@ -20,4 +20,5 @@ export interface ApiResponse<T = any> {
   error?: string;
   fieldErrors?: Record<string, string>;
   message?: string;
+  status?: number;
 }

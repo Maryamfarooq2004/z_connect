@@ -22,14 +22,9 @@ export const authService = {
    * Sign up a new user
    */
   async signup(data: Omit<SignupFields, "confirmPassword" | "terms">): Promise<ApiResponse<AuthResponse>> {
-    // Map client fields first_name and last_name from fullName
-    const names = data.fullName.trim().split(" ");
-    const first_name = names[0] || "";
-    const last_name = names.slice(1).join(" ") || "";
-    
     const payload = {
-      first_name,
-      last_name,
+      first_name: data.firstName,
+      last_name: data.lastName,
       email: data.email,
       password: data.password,
     };

@@ -2,24 +2,14 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const backendUrl = process.env.BACKEND_API_URL;
-
-    // /api/auth/logout has NO request body (confirmed from OpenAPI spec).
-    const authHeader = req.headers.get("authorization") || "";
-
-    const response = await fetch(`${backendUrl}/api/auth/logout`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(authHeader ? { Authorization: authHeader } : {}),
-      },
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    return NextResponse.json(data, { status: response.status });
+    const response = NextResponse.json({ success: true, message: "Logged out successfully" }, { status: 200 });
+    
+    // Clear the zconnect_refresh_token cookie
+    response.cookies.delete("zconnect_refresh_token");
+    
+    return response;
   } catch (err: any) {
-    console.error("Logout BFF Error:", err);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    console.error("Logout Error:", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

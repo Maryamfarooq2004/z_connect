@@ -1,22 +1,35 @@
 import { NextResponse } from "next/server";
+import { connectToDatabase } from "@/lib/mongodb";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const backendUrl = process.env.BACKEND_API_URL;
+    const { email, otp, newPassword } = body;
 
-    // ResetPasswordDto: { email, otp, newPassword }
-    const response = await fetch(`${backendUrl}/api/auth/reset-password`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    if (!email || !otp || !newPassword) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
 
-    const data = await response.json().catch(() => ({}));
+    const { db } = await connectToDatabase();
+    const user = await db.collection("users").findOne({ email: email.toLowerCase(), resetOtp: otp });
 
-    return NextResponse.json(data, { status: response.status });
+    if (!user) {
+      return NextResponse.json({ error: "Invalid reset session or OTP code" }, { status: 400 });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.collection("users").updateOne(
+      { _id: user._id },
+      { 
+        $set: { password: hashedPassword },
+        $unset: { resetOtp: "" }
+      }
+    );
+
+    return NextResponse.json({ success: true, message: "Password updated successfully" }, { status: 201 });
   } catch (err: any) {
-    console.error("Reset Password BFF Error:", err);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    console.error("Reset Password Error:", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

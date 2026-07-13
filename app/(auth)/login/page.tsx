@@ -41,7 +41,7 @@ export default function LoginPage() {
         toast.success("Authentication successful", {
           description: "Access authorized for ZConnect.",
         });
-        router.push("/dashboard");
+        router.replace("/dashboard");
       } else {
         toast.error("Authentication failed", {
           description: response.error || "Please verify credentials and try again.",

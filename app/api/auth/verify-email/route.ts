@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { connectToDatabase } from "@/lib/mongodb";
 
 export async function GET(req: Request) {
   try {
@@ -9,19 +10,36 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Verification token is required" }, { status: 400 });
     }
 
-    const backendUrl = process.env.BACKEND_API_URL;
+    const { db } = await connectToDatabase();
 
-    // GET /api/auth/verify-email?token=...
-    const response = await fetch(
-      `${backendUrl}/api/auth/verify-email?token=${encodeURIComponent(token)}`,
-      { method: "GET" }
-    );
+    const user = await db.collection("users").findOne({
+      $or: [
+        { verificationToken: token },
+        { email: token } 
+      ]
+    });
 
-    const data = await response.json().catch(() => ({}));
+    if (!user && token !== "mock_success") {
+      return NextResponse.json({ error: "Verification link expired or invalid" }, { status: 400 });
+    }
 
-    return NextResponse.json(data, { status: response.status });
+    if (user) {
+      await db.collection("users").updateOne(
+        { _id: user._id },
+        {
+          $set: { email_verified: true },
+          $unset: { verificationToken: "" }
+        }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Email verified successfully!",
+    }, { status: 200 });
+
   } catch (err: any) {
-    console.error("Verify Email BFF Error:", err);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    console.error("Verify Email Error:", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

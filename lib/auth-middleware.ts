@@ -1,20 +1,42 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { verifyAccessToken } from "@/lib/jwt";
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "./db";
 
 export async function verifyAuthRequest(req: Request) {
-  const reqHeaders = await headers();
-  const authHeader = reqHeaders.get("authorization") || "";
-
-  if (!authHeader.startsWith("Bearer ")) {
+  const { userId } = await auth();
+  if (!userId) {
     return null;
   }
 
-  const token = authHeader.split(" ")[1];
-  return verifyAccessToken(token) as any;
+  // Find user by clerkId
+  let user = await prisma.user.findUnique({
+    where: { clerkId: userId }
+  });
+
+  if (!user) {
+    const { currentUser } = await import("@clerk/nextjs/server");
+    const clerkUser = await currentUser();
+    const email = clerkUser?.primaryEmailAddress?.emailAddress;
+
+    if (email) {
+      // Try to find the existing database user by email to link them
+      user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() }
+      });
+
+      if (user) {
+        // Link the user with their Clerk ID
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { clerkId: userId }
+        });
+      }
+    }
+  }
+
+  return user;
 }
 
-// Global response helper
 export function unauthorizedResponse() {
   return NextResponse.json({ error: "Unauthorized access" }, { status: 401 });
 }

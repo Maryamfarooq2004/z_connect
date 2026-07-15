@@ -249,7 +249,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-bg-base flex flex-col md:flex-row text-text-primary paper-grain relative">
-      
       {/* Sidebar Navigation */}
       <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border-subtle bg-bg-surface p-6 flex flex-col justify-between relative z-10">
         <div className="space-y-8">
@@ -320,7 +319,6 @@ export default function DashboardPage() {
           </button>
         </div>
       </aside>
-
       {/* Main Panel */}
       <main className="flex-1 p-6 md:p-12 relative z-10 flex flex-col justify-between">
         
@@ -360,7 +358,7 @@ export default function DashboardPage() {
             <>
               {showEmptyState || managers.length === 0 ? (
                 /* Editorial Empty State */
-                <div className="border border-dashed border-border-subtle rounded-xl p-12 text-center max-w-lg mx-auto my-12 bg-bg-surface/30">
+                (<div className="border border-dashed border-border-subtle rounded-xl p-12 text-center max-w-lg mx-auto my-12 bg-bg-surface/30">
                   <p className="text-lg font-display italic text-text-secondary mb-3">No managers listed in directory</p>
                   <p className="text-xs text-text-secondary/70 leading-relaxed max-w-sm mx-auto mb-6">
                     A directory record grants permission to upload resources, curate files, and handle user catalogs. Invite a administrator or editor to begin.
@@ -371,10 +369,10 @@ export default function DashboardPage() {
                   >
                     Send Invitation
                   </button>
-                </div>
+                </div>)
               ) : (
                 /* Populated State & Detail View Panel */
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                (<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   {/* Left Column: Manager list */}
                   <div className="lg:col-span-2 space-y-3">
                     <div className="border border-border-subtle bg-bg-surface rounded overflow-hidden">
@@ -415,7 +413,6 @@ export default function DashboardPage() {
                       </table>
                     </div>
                   </div>
-
                   {/* Right Column: Detailed Inspector Panel */}
                   <div className="border border-border-subtle bg-bg-surface rounded-xl p-6 relative">
                     {selectedManager ? (
@@ -458,7 +455,7 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </div>)
               )}
             </>
           )}
@@ -592,7 +589,6 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
-
       {/* Invite Manager Modal Container */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-text-primary/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -673,7 +669,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

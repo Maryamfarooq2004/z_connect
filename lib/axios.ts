@@ -1,5 +1,15 @@
 import axios from "axios";
 
+let inMemoryAccessToken: string | null = null;
+
+export const setInMemoryToken = (token: string | null) => {
+  inMemoryAccessToken = token;
+};
+
+export const getInMemoryToken = () => {
+  return inMemoryAccessToken;
+};
+
 const getApiBaseUrl = () => {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (!url || url === "undefined" || url === "null" || url === "") {
@@ -18,14 +28,12 @@ export const apiClient = axios.create({
   timeout: 10000,
 });
 
-// Interceptor to attach access token from localStorage (safe for client-side execution)
+// Interceptor to attach access token from memory (highly secure, safe from XSS)
 apiClient.interceptors.request.use(
   (config) => {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("zconnect_access_token");
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    const token = inMemoryAccessToken;
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -46,31 +54,26 @@ apiClient.interceptors.response.use(
       
       try {
         if (typeof window !== "undefined") {
-          const refreshToken = localStorage.getItem("zconnect_refresh_token");
+          // Attempt to refresh token by hitting /refresh endpoint.
+          // Since the browser automatically attaches the HttpOnly cookie, we don't pass the refresh token in the body.
+          const response = await axios.post(
+            `${API_BASE_URL}/api/auth/refresh`,
+            {},
+            { withCredentials: true }
+          );
           
-          if (refreshToken) {
-            // Attempt to refresh token using the base client to avoid interceptor loop
-            const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
-              refreshToken,
-            });
+          if (response.data?.accessToken) {
+            inMemoryAccessToken = response.data.accessToken;
             
-            if (response.data?.accessToken) {
-              localStorage.setItem("zconnect_access_token", response.data.accessToken);
-              if (response.data.refreshToken) {
-                localStorage.setItem("zconnect_refresh_token", response.data.refreshToken);
-              }
-              
-              // Retry the original request with the new token
-              originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
-              return apiClient(originalRequest);
-            }
+            // Retry the original request with the new token
+            originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
+            return apiClient(originalRequest);
           }
         }
       } catch (refreshError) {
-        // Refresh token failed, clear credentials and redirect to login
+        // Refresh token failed/expired, clear in-memory credentials and redirect to login
         if (typeof window !== "undefined") {
-          localStorage.removeItem("zconnect_access_token");
-          localStorage.removeItem("zconnect_refresh_token");
+          inMemoryAccessToken = null;
           // Dispatch a custom event to notify components/auth providers
           window.dispatchEvent(new Event("auth_session_expired"));
         }

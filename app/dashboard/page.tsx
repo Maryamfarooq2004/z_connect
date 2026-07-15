@@ -2,7 +2,7 @@
 
 import { apiClient } from "@/lib/axios";
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { 
   Users, 
   FileText, 
@@ -38,7 +38,8 @@ interface MediaFile {
 }
 
 export default function DashboardPage() {
-  const { user, logout, updateProfile } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
   
   // Dashboard Section states
   const [activeSection, setActiveSection] = useState<"directory" | "profile" | "media">("directory");
@@ -65,8 +66,8 @@ export default function DashboardPage() {
     if (user) {
       setProfileForm({
         fullName: user.fullName || "",
-        username: user.username,
-        avatar: user.avatarUrl || "",
+        username: user.username || "",
+        avatar: user.imageUrl || "",
       });
     }
   }, [user]);
@@ -190,11 +191,20 @@ export default function DashboardPage() {
 
   const handleUpdateSelfProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
     try {
-      await updateProfile(profileForm.fullName, profileForm.username);
+      const parts = profileForm.fullName.trim().split(/\s+/);
+      const firstName = parts[0] || "";
+      const lastName = parts.slice(1).join(" ") || "";
+      await user.update({
+        firstName,
+        lastName,
+        username: profileForm.username,
+      });
       toast.success("Your profile record has been synchronized.");
-    } catch (err) {
-      toast.error("Failed to sync profile settings.");
+    } catch (err: any) {
+      console.error("Update profile error:", err);
+      toast.error(err.message || "Failed to sync profile settings.");
     }
   };
 
@@ -302,7 +312,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <button
-            onClick={() => logout()}
+            onClick={() => signOut()}
             className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-accent-error hover:bg-accent-error/5 rounded transition-all cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5" />

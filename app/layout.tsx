@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Newsreader, Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/components/shared/ThemeProvider";
 import { Toaster } from "sonner";
+
+import { ClerkProvider } from "@clerk/nextjs";
 
 const newsreader = Newsreader({
   variable: "--font-newsreader",
@@ -29,8 +30,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${newsreader.variable} ${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full bg-bg-base text-text-primary font-sans flex flex-col antialiased" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={true}>
-          <AuthProvider>
+        <ClerkProvider>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem={true}>
             {children}
             <Toaster position="top-right" richColors closeButton toastOptions={{
               style: {
@@ -40,8 +41,8 @@ export default function RootLayout({
                 color: 'var(--text-primary)',
               }
             }} />
-          </AuthProvider>
-        </ThemeProvider>
+          </ThemeProvider>
+        </ClerkProvider>
       </body>
     </html>
   );

@@ -59,16 +59,8 @@ export default function LoginPage() {
   const handleSocialLogin = async (provider: "google" | "apple") => {
     setIsLoading(true);
     try {
-      const mockToken = `mock_${provider}_token`;
-      const response = await socialLogin(provider, mockToken);
-      if (response.success) {
-        toast.success("Authentication successful", {
-          description: `Access authorized via ${provider}.`,
-        });
-        router.push("/dashboard");
-      } else {
-        toast.error("OAuth registration failed.");
-      }
+      const { signIn } = await import("next-auth/react");
+      await signIn(provider, { callbackUrl: "/dashboard" });
     } catch (err) {
       toast.error("Social login encountered an error.");
     } finally {

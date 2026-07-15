@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
-import { ObjectId } from "mongodb";
 
 export async function PATCH(req: Request) {
   try {
@@ -13,16 +12,10 @@ export async function PATCH(req: Request) {
 
     const { oldPassword, newPassword } = await req.json();
 
-    const { db } = await connectToDatabase();
-    
-    let query = {};
-    try {
-      query = { _id: new ObjectId(userPayload.id) };
-    } catch (e) {
-      query = { id: userPayload.id };
-    }
+    const user = await prisma.user.findUnique({
+      where: { id: userPayload.id }
+    });
 
-    const user = await db.collection("users").findOne(query);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -33,7 +26,10 @@ export async function PATCH(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await db.collection("users").updateOne(query, { $set: { password: hashedPassword } });
+    await prisma.user.update({
+      where: { id: userPayload.id },
+      data: { password: hashedPassword }
+    });
 
     return NextResponse.json({ success: true }, { status: 201 });
 

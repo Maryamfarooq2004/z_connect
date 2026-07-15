@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyRefreshToken, generateAccessToken, generateRefreshToken } from "@/lib/jwt";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
@@ -25,19 +24,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid session token" }, { status: 401 });
     }
 
-    const { db } = await connectToDatabase();
-    let user;
-    try {
-      user = await db.collection("users").findOne({ _id: new ObjectId(payload.id) });
-    } catch (e) {
-      user = await db.collection("users").findOne({ id: payload.id });
-    }
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id }
+    });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 401 });
     }
 
-    const userId = user._id.toString();
+    const userId = user.id;
     const userPayload = {
       id: userId,
       email: user.email,

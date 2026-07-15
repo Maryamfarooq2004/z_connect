@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
@@ -10,8 +10,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email and OTP are required" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    const user = await db.collection("users").findOne({ email: email.toLowerCase(), resetOtp: otp });
+    const user = await prisma.user.findFirst({
+      where: {
+        email: email.toLowerCase(),
+        resetOtp: otp
+      }
+    });
 
     if (!user) {
       return NextResponse.json({ error: "Invalid OTP code" }, { status: 400 });

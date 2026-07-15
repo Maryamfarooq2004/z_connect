@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 
 export async function GET(req: Request) {
   try {
@@ -9,13 +9,13 @@ export async function GET(req: Request) {
       return unauthorizedResponse();
     }
 
-    const { db } = await connectToDatabase();
-    
     // Get all media items for this user/workspace
-    const media = await db.collection("media").find({ userId: userPayload.id }).toArray();
+    const media = await prisma.media.findMany({
+      where: { userId: userPayload.id }
+    });
 
     const formattedMedia = media.map(m => ({
-      id: m._id.toString(),
+      id: m.id,
       name: m.name,
       size: m.size,
       type: m.type,

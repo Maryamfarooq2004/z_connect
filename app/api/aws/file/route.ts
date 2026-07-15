@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/db";
 
 export async function DELETE(req: Request) {
   try {
@@ -17,18 +16,14 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Media ID is required" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    
-    let query = {};
-    try {
-      query = { _id: new ObjectId(id), userId: userPayload.id };
-    } catch (e) {
-      query = { id: id, userId: userPayload.id };
-    }
+    const result = await prisma.media.deleteMany({
+      where: {
+        id: id,
+        userId: userPayload.id
+      }
+    });
 
-    const result = await db.collection("media").deleteOne(query);
-
-    if (result.deletedCount === 0) {
+    if (result.count === 0) {
       return NextResponse.json({ error: "File not found or unauthorized" }, { status: 404 });
     }
 

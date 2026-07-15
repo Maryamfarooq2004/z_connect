@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 import { verifyAccessToken } from "@/lib/jwt";
-import { ObjectId } from "mongodb";
 
 export async function POST(req: Request) {
   try {
@@ -17,38 +16,45 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { first_name, last_name, bio } = body;
-
-    const { db } = await connectToDatabase();
-    
-    let userQuery = {};
-    try {
-      userQuery = { _id: new ObjectId(payload.id) };
-    } catch (e) {
-      userQuery = { id: payload.id };
-    }
+    const { first_name, last_name } = body;
 
     const updateFields: any = {};
     if (first_name !== undefined) updateFields.first_name = first_name;
     if (last_name !== undefined) updateFields.last_name = last_name;
-    if (bio !== undefined) updateFields.bio = bio;
 
-    if (Object.keys(updateFields).length > 0) {
-      await db.collection("users").updateOne(userQuery, { $set: updateFields });
+    if (first_name !== undefined || last_name !== undefined) {
+      const user = await prisma.user.findUnique({ where: { id: payload.id } });
+      if (user) {
+        const finalFirstName = first_name !== undefined ? first_name : user.first_name;
+        const finalLastName = last_name !== undefined ? last_name : user.last_name;
+        updateFields.fullName = `${finalFirstName} ${finalLastName}`;
+      }
     }
 
-    const updatedUser = await db.collection("users").findOne(userQuery);
+    let updatedUser = await prisma.user.findUnique({
+      where: { id: payload.id }
+    });
+
+    if (!updatedUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (Object.keys(updateFields).length > 0) {
+      updatedUser = await prisma.user.update({
+        where: { id: payload.id },
+        data: updateFields
+      });
+    }
 
     return NextResponse.json({
-      id: updatedUser?._id.toString(),
-      email: updatedUser?.email,
-      username: updatedUser?.username,
-      first_name: updatedUser?.first_name,
-      last_name: updatedUser?.last_name,
-      fullName: `${updatedUser?.first_name} ${updatedUser?.last_name}`,
-      bio: updatedUser?.bio || "",
-      avatarUrl: updatedUser?.avatarUrl || "",
-      createdAt: updatedUser?.createdAt,
+      id: updatedUser.id,
+      email: updatedUser.email,
+      username: updatedUser.username,
+      first_name: updatedUser.first_name,
+      last_name: updatedUser.last_name,
+      fullName: updatedUser.fullName || `${updatedUser.first_name} ${updatedUser.last_name}`,
+      avatarUrl: updatedUser.avatarUrl || "",
+      createdAt: updatedUser.createdAt,
     }, { status: 201 });
   } catch (err: any) {
     console.error("Update Profile Error:", err);

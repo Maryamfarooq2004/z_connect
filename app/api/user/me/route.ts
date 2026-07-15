@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/db";
 
 export async function GET(req: Request) {
   try {
@@ -10,28 +9,21 @@ export async function GET(req: Request) {
       return unauthorizedResponse();
     }
 
-    const { db } = await connectToDatabase();
-    
-    let userQuery = {};
-    try {
-      userQuery = { _id: new ObjectId(userPayload.id) };
-    } catch (e) {
-      userQuery = { id: userPayload.id };
-    }
+    const user = await prisma.user.findUnique({
+      where: { id: userPayload.id }
+    });
 
-    const user = await db.collection("users").findOne(userQuery);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     return NextResponse.json({
-      id: user._id.toString(),
+      id: user.id,
       email: user.email,
       username: user.username,
       first_name: user.first_name || user.fullName?.split(" ")[0] || "",
       last_name: user.last_name || user.fullName?.split(" ")[1] || "",
       fullName: user.fullName || `${user.first_name || ""} ${user.last_name || ""}`.trim(),
-      bio: user.bio || "",
       avatarUrl: user.avatarUrl || "",
       role: user.role || "user",
       createdAt: user.createdAt,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 
@@ -12,10 +12,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    
     // Check if user already exists
-    const existingUser = await db.collection("users").findOne({ email: email.toLowerCase() });
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
     if (existingUser) {
       return NextResponse.json({ error: "Email is already registered" }, { status: 409 });
     }
@@ -23,20 +23,21 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = {
-      first_name,
-      last_name,
-      email: email.toLowerCase(),
-      username: email.split("@")[0] + Math.floor(Math.random() * 1000),
-      password: hashedPassword,
-      email_verified: false,
-      role: "user",
-      createdAt: new Date().toISOString(),
-      avatarUrl: "",
-    };
+    const newUser = await prisma.user.create({
+      data: {
+        first_name,
+        last_name,
+        email: email.toLowerCase(),
+        username: email.split("@")[0] + Math.floor(Math.random() * 1000),
+        password: hashedPassword,
+        email_verified: false,
+        role: "user",
+        createdAt: new Date().toISOString(),
+        avatarUrl: "",
+      }
+    });
 
-    const result = await db.collection("users").insertOne(newUser);
-    const userId = result.insertedId.toString();
+    const userId = newUser.id;
 
     // Generate access & refresh tokens
     const userPayload = {

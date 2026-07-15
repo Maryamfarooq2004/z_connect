@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 
 export async function GET(req: Request) {
   try {
@@ -9,18 +9,18 @@ export async function GET(req: Request) {
       return unauthorizedResponse();
     }
 
-    const { db } = await connectToDatabase();
-    
     // Find all users who are managers or have role: manager
-    const managers = await db.collection("users").find({
-      $or: [
-        { role: "manager" },
-        { status: { $exists: true } }
-      ]
-    }).toArray();
+    const managers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { role: "manager" },
+          { status: "Pending" } // Pending status applies mostly to invited managers
+        ]
+      }
+    });
 
     const formattedManagers = managers.map(m => ({
-      id: m._id.toString(),
+      id: m.id,
       first_name: m.first_name || m.fullName?.split(" ")[0] || "",
       last_name: m.last_name || m.fullName?.split(" ")[1] || "",
       fullName: m.fullName || `${m.first_name || ""} ${m.last_name || ""}`.trim(),

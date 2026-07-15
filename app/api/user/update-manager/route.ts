@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/db";
 
 export async function PATCH(req: Request) {
   try {
@@ -17,15 +16,6 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Manager ID is required" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    
-    let query = {};
-    try {
-      query = { _id: new ObjectId(id) };
-    } catch (e) {
-      query = { id: id };
-    }
-
     let updates: any = {};
     if (first_name !== undefined) updates.first_name = first_name;
     if (last_name !== undefined) updates.last_name = last_name;
@@ -34,16 +24,27 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "No update parameters provided" }, { status: 400 });
     }
 
-    await db.collection("users").updateOne(query, { $set: updates });
-    const updated = await db.collection("users").findOne(query);
+    if (first_name !== undefined || last_name !== undefined) {
+      const user = await prisma.user.findUnique({ where: { id } });
+      if (user) {
+        const finalFirstName = first_name !== undefined ? first_name : user.first_name;
+        const finalLastName = last_name !== undefined ? last_name : user.last_name;
+        updates.fullName = `${finalFirstName} ${finalLastName}`;
+      }
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: id },
+      data: updates
+    });
 
     return NextResponse.json({
-      id: updated?._id.toString(),
-      first_name: updated?.first_name,
-      last_name: updated?.last_name,
-      email: updated?.email,
-      role: updated?.role,
-      status: updated?.status || "Active",
+      id: updated.id,
+      first_name: updated.first_name,
+      last_name: updated.last_name,
+      email: updated.email,
+      role: updated.role,
+      status: updated.status || "Active",
     }, { status: 200 });
 
   } catch (err: any) {

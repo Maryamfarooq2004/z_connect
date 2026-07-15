@@ -1,12 +1,13 @@
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 
 export async function GET() {
   try {
-    const { db } = await connectToDatabase();
+    const userCount = await prisma.user.count();
 
     return Response.json({
       success: true,
-      database: db.databaseName,
+      database: "postgresql",
+      userCount,
     });
   } catch (error) {
     console.error(error);

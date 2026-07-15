@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 
 export async function GET(req: Request) {
   try {
@@ -10,13 +10,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Verification token is required" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-
-    const user = await db.collection("users").findOne({
-      $or: [
-        { verificationToken: token },
-        { email: token } 
-      ]
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { verificationToken: token },
+          { email: token }
+        ]
+      }
     });
 
     if (!user && token !== "mock_success") {
@@ -24,13 +24,13 @@ export async function GET(req: Request) {
     }
 
     if (user) {
-      await db.collection("users").updateOne(
-        { _id: user._id },
-        {
-          $set: { email_verified: true },
-          $unset: { verificationToken: "" }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          email_verified: true,
+          verificationToken: null
         }
-      );
+      });
     }
 
     return NextResponse.json({

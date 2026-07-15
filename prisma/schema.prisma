@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+
+model User {
+  id                String    @id @default(uuid())
+  first_name        String
+  last_name         String
+  fullName          String?
+  email             String    @unique
+  username          String    @unique
+  password          String
+  role              String    @default("user")
+  status            String    @default("Active")
+  invited_by        String?
+  invited_at        String?
+  createdAt         String
+  email_verified    Boolean   @default(false)
+  avatarUrl         String?   @default("")
+  verificationToken String?
+  resetOtp          String?
+  media             Media[]
+
+  @@map("users")
+}
+
+model Media {
+  id         String   @id @default(uuid())
+  name       String
+  size       String   @default("Unknown size")
+  type       String   @default("file")
+  url        String
+  userId     String
+  uploadedAt String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("media")
+}

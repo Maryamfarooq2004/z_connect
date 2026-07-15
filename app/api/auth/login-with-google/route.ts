@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 
 export async function POST(req: Request) {
@@ -11,29 +11,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Google token is required" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    
     // Simulate user lookup or creation from Google OAuth details
     const email = "google.user@zconnect.design";
-    let user = await db.collection("users").findOne({ email });
+    let user = await prisma.user.findUnique({
+      where: { email }
+    });
 
     if (!user) {
-      const newUser = {
-        first_name: "Google",
-        last_name: "User",
-        email: email,
-        username: "google_user" + Math.floor(Math.random() * 1000),
-        password: "social-oauth-stub-password",
-        email_verified: true,
-        role: "user",
-        createdAt: new Date().toISOString(),
-        avatarUrl: "",
-      };
-      const result = await db.collection("users").insertOne(newUser);
-      user = { ...newUser, _id: result.insertedId };
+      user = await prisma.user.create({
+        data: {
+          first_name: "Google",
+          last_name: "User",
+          email: email,
+          username: "google_user" + Math.floor(Math.random() * 1000),
+          password: "social-oauth-stub-password",
+          email_verified: true,
+          role: "user",
+          createdAt: new Date().toISOString(),
+          avatarUrl: "",
+        }
+      });
     }
 
-    const userId = user._id.toString();
+    const userId = user.id;
     const userPayload = {
       id: userId,
       email: user.email,

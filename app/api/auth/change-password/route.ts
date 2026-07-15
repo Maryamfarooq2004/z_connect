@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 import { verifyAccessToken } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
-import { ObjectId } from "mongodb";
 
 export async function POST(req: Request) {
   try {
@@ -24,16 +23,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    
-    let userQuery = {};
-    try {
-      userQuery = { _id: new ObjectId(payload.id) };
-    } catch (e) {
-      userQuery = { id: payload.id };
-    }
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id }
+    });
 
-    const user = await db.collection("users").findOne(userQuery);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -44,7 +37,10 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await db.collection("users").updateOne(userQuery, { $set: { password: hashedPassword } });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword }
+    });
 
     return NextResponse.json({ success: true, message: "Password updated successfully" }, { status: 201 });
   } catch (err: any) {

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
@@ -15,15 +14,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "imageUrl is required" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    let query = {};
-    try {
-      query = { _id: new ObjectId(userPayload.id) };
-    } catch (e) {
-      query = { id: userPayload.id };
-    }
-
-    await db.collection("users").updateOne(query, { $set: { avatarUrl: imageUrl } });
+    await prisma.user.update({
+      where: { id: userPayload.id },
+      data: { avatarUrl: imageUrl }
+    });
 
     return NextResponse.json({ success: true, imageUrl }, { status: 200 });
 

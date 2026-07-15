@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
@@ -18,35 +18,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    
     // Check if manager email already exists
-    const existing = await db.collection("users").findOne({ email: email.toLowerCase() });
+    const existing = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
     if (existing) {
       return NextResponse.json({ error: "Email is already registered" }, { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newManager = {
-      first_name,
-      last_name,
-      email: email.toLowerCase(),
-      username: email.split("@")[0],
-      password: hashedPassword,
-      role: "manager", // set role to manager
-      status: "Pending", // initial state as pending
-      invited_by: userPayload.id,
-      invited_at: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      email_verified: false,
-      avatarUrl: "",
-    };
-
-    const result = await db.collection("users").insertOne(newManager);
+    const newManager = await prisma.user.create({
+      data: {
+        first_name,
+        last_name,
+        email: email.toLowerCase(),
+        username: email.split("@")[0],
+        password: hashedPassword,
+        role: "manager", // set role to manager
+        status: "Pending", // initial state as pending
+        invited_by: userPayload.id,
+        invited_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        email_verified: false,
+        avatarUrl: "",
+      }
+    });
 
     return NextResponse.json({
-      id: result.insertedId.toString(),
+      id: newManager.id,
       first_name: newManager.first_name,
       last_name: newManager.last_name,
       email: newManager.email,

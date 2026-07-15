@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 
@@ -12,14 +12,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing username or password" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    
     // Find user by email or username
-    const user = await db.collection("users").findOne({
-      $or: [
-        { email: username.toLowerCase() },
-        { username: username }
-      ]
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: username.toLowerCase() },
+          { username: username }
+        ]
+      }
     });
 
     if (!user) {
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid username or password" }, { status: 401 });
     }
 
-    const userId = user._id.toString();
+    const userId = user.id;
     const userPayload = {
       id: userId,
       email: user.email,

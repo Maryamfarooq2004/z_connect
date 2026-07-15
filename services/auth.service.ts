@@ -26,6 +26,7 @@ export const authService = {
       first_name: data.firstName,
       last_name: data.lastName,
       email: data.email,
+      username: data.username,
       password: data.password,
     };
     

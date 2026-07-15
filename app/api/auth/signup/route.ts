@@ -6,18 +6,26 @@ import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { first_name, last_name, email, password } = body;
+    const { first_name, last_name, email, username, password } = body;
 
-    if (!first_name || !last_name || !email || !password) {
+    if (!first_name || !last_name || !email || !username || !password) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    // Check if email already exists
+    const existingEmail = await prisma.user.findUnique({
       where: { email: email.toLowerCase() }
     });
-    if (existingUser) {
+    if (existingEmail) {
       return NextResponse.json({ error: "Email is already registered" }, { status: 409 });
+    }
+
+    // Check if username already exists
+    const existingUsername = await prisma.user.findUnique({
+      where: { username: username.toLowerCase() }
+    });
+    if (existingUsername) {
+      return NextResponse.json({ error: "Username is already taken" }, { status: 409 });
     }
 
     // Hash password
@@ -28,7 +36,7 @@ export async function POST(req: Request) {
         first_name,
         last_name,
         email: email.toLowerCase(),
-        username: email.split("@")[0] + Math.floor(Math.random() * 1000),
+        username: username.toLowerCase(),
         password: hashedPassword,
         email_verified: false,
         role: "user",

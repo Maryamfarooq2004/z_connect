@@ -84,11 +84,11 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-1.5">
             <label className="text-[9px] font-mono uppercase tracking-widest text-text-secondary pl-0.5">
-              Username
+              Username or Email
             </label>
             <Input
               type="text"
-              placeholder="e.g. system_admin"
+              placeholder="e.g. system_admin or user@zconnect.design"
               error={errors.username?.message}
               disabled={isLoading}
               {...register("username")}

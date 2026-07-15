@@ -19,7 +19,7 @@ export async function GET(req: Request) {
       }
     });
 
-    const formattedManagers = managers.map(m => ({
+    const formattedManagers = managers.map((m: any) => ({
       id: m.id,
       first_name: m.first_name || m.fullName?.split(" ")[0] || "",
       last_name: m.last_name || m.fullName?.split(" ")[1] || "",

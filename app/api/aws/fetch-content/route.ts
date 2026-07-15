@@ -14,7 +14,7 @@ export async function GET(req: Request) {
       where: { userId: userPayload.id }
     });
 
-    const formattedMedia = media.map(m => ({
+    const formattedMedia = media.map((m: any) => ({
       id: m.id,
       name: m.name,
       size: m.size,

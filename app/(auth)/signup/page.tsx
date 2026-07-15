@@ -13,12 +13,25 @@ import { AuthCard } from "@/components/auth/AuthCard";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
-import { PrimaryButton } from "@/components/ui/Buttons";
+import { PrimaryButton, Divider } from "@/components/ui/Buttons";
+import { SocialButton } from "@/components/ui/SocialButton";
 
 export default function SignupPage() {
   const { signup } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleSocialLogin = async (provider: "google" | "apple") => {
+    setIsLoading(true);
+    try {
+      const { signIn } = await import("next-auth/react");
+      await signIn(provider, { callbackUrl: "/dashboard" });
+    } catch (err) {
+      toast.error("Social login encountered an error.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const {
     register,
@@ -190,6 +203,21 @@ export default function SignupPage() {
             Initialize Account
           </PrimaryButton>
         </form>
+
+        <Divider label="OAuth Credentials" />
+
+        <div className="grid grid-cols-2 gap-3">
+          <SocialButton
+            provider="google"
+            onClick={() => handleSocialLogin("google")}
+            disabled={isLoading}
+          />
+          <SocialButton
+            provider="apple"
+            onClick={() => handleSocialLogin("apple")}
+            disabled={isLoading}
+          />
+        </div>
 
         <p className="mt-8 text-center text-xs font-mono uppercase tracking-widest text-text-secondary">
           Have an account?{" "}

@@ -6,6 +6,7 @@ import Apple from "next-auth/providers/apple";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "fallback_development_secret_key_123",
   providers: [
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,

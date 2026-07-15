@@ -120,11 +120,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const socialLogin = async (provider: "google" | "apple", flow: "signIn" | "signUp" = "signIn") => {
     if (!isReady) return { success: false, error: "Auth client not ready" };
     try {
-      const target = (flow === "signUp" ? clerk.client.signUp : clerk.client.signIn) as any;
-      await target.sso({
+      const target = flow === "signUp" ? clerk.client.signUp : clerk.client.signIn;
+      await target.authenticateWithRedirect({
         strategy: provider === "google" ? "oauth_google" : "oauth_apple",
-        redirectCallbackUrl: "/sso-callback",
-        redirectUrl: "/dashboard",
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/dashboard",
       });
       return { success: true };
     } catch (err: any) {

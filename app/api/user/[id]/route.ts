@@ -11,8 +11,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const { id } = await params;
     
-    // Check privileges: users can delete their own accounts, or admins can delete any
-    if (userPayload.id !== id && userPayload.role !== "admin") {
+    // Check privileges: users can delete their own accounts
+    if (userPayload.id !== id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

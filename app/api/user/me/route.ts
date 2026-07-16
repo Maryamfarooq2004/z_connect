@@ -21,12 +21,12 @@ export async function GET(req: Request) {
       id: user.id,
       email: user.email,
       username: user.username,
-      first_name: user.first_name || user.fullName?.split(" ")[0] || "",
-      last_name: user.last_name || user.fullName?.split(" ")[1] || "",
-      fullName: user.fullName || `${user.first_name || ""} ${user.last_name || ""}`.trim(),
-      avatarUrl: user.avatarUrl || "",
-      role: user.role || "user",
-      createdAt: user.createdAt,
+      first_name: user.fullName?.split(" ")[0] || "",
+      last_name: user.fullName?.split(" ")[1] || "",
+      fullName: user.fullName || "",
+      avatarUrl: user.profileImage || "",
+      role: "Editor",
+      createdAt: user.createdAt.toISOString(),
     }, { status: 200 });
 
   } catch (err: any) {

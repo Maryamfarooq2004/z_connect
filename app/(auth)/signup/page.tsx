@@ -70,7 +70,7 @@ export default function SignupPage() {
     try {
       const response = await socialLogin(provider, "signUp");
       if (!response.success) {
-        toast.error("OAuth registration failed.");
+        toast.error(response.error || "OAuth registration failed.");
         setIsLoading(false);
       }
     } catch (err) {

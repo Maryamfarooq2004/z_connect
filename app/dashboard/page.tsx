@@ -311,7 +311,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <button
-            onClick={() => signOut()}
+            onClick={() => signOut({ redirectUrl: "/login" })}
             className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-accent-error hover:bg-accent-error/5 rounded transition-all cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5" />

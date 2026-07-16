@@ -8,26 +8,16 @@ datasource db {
 
 
 model User {
-  id                String    @id @default(uuid())
-  clerkId           String?   @unique
-  first_name        String
-  last_name         String
-  fullName          String?
-  email             String    @unique
-  username          String    @unique
-  password          String
-  role              String    @default("user")
-  status            String    @default("Active")
-  invited_by        String?
-  invited_at        String?
-  createdAt         String
-  email_verified    Boolean   @default(false)
-  avatarUrl         String?   @default("")
-  verificationToken String?
-  resetOtp          String?
-  media             Media[]
-  accounts          Account[]
-  sessions          Session[]
+  id           String   @id @default(uuid())
+  clerkId      String   @unique
+  email        String   @unique
+  username     String   @unique
+  fullName     String?
+  profileImage String?  @default("")
+  bio          String?  @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  media        Media[]
 
   @@map("users")
 }
@@ -43,44 +33,5 @@ model Media {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("media")
-}
-
-model Account {
-  id                 String  @id @default(uuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?  @db.Text
-  access_token       String?  @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?  @db.Text
-  session_state      String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_tokens")
 }
 

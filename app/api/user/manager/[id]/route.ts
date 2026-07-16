@@ -21,13 +21,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     return NextResponse.json({
       id: manager.id,
-      first_name: manager.first_name || manager.fullName?.split(" ")[0] || "",
-      last_name: manager.last_name || manager.fullName?.split(" ")[1] || "",
-      fullName: manager.fullName || `${manager.first_name || ""} ${manager.last_name || ""}`.trim(),
+      first_name: manager.fullName?.split(" ")[0] || "",
+      last_name: manager.fullName?.split(" ")[1] || "",
+      fullName: manager.fullName || "",
       email: manager.email,
-      role: manager.role || "manager",
-      status: manager.status || "Active",
-      createdAt: manager.createdAt,
+      role: "Editor",
+      status: "Active",
+      createdAt: manager.createdAt.toISOString(),
     }, { status: 200 });
 
   } catch (err: any) {

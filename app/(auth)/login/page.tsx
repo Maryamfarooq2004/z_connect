@@ -61,7 +61,7 @@ export default function LoginPage() {
     try {
       const response = await socialLogin(provider);
       if (!response.success) {
-        toast.error("OAuth registration failed.");
+        toast.error(response.error || "OAuth registration failed.");
         setIsLoading(false);
       }
     } catch (err) {
@@ -83,7 +83,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" autoComplete="off">
           <div className="space-y-1.5">
             <label className="text-[9px] font-mono uppercase tracking-widest text-text-secondary pl-0.5">
               Username or Email
@@ -93,6 +93,7 @@ export default function LoginPage() {
               placeholder="e.g. system_admin or hello@zconnect.design"
               error={errors.username?.message}
               disabled={isLoading}
+              autoComplete="off"
               {...register("username")}
             />
           </div>
@@ -113,6 +114,7 @@ export default function LoginPage() {
               placeholder="••••••••"
               error={errors.password?.message}
               disabled={isLoading}
+              autoComplete="new-password"
               {...register("password")}
             />
           </div>

@@ -11,7 +11,7 @@ export async function DELETE(req: Request) {
 
     await prisma.user.update({
       where: { id: userPayload.id },
-      data: { avatarUrl: "" }
+      data: { profileImage: "" }
     });
 
     return NextResponse.json({ success: true, message: "Avatar image removed" }, { status: 200 });

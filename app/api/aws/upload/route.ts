@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
+import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
@@ -14,24 +14,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "fileName and fileUrl are required" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    const mediaItem = {
-      name: fileName,
-      size: fileSize || "Unknown size",
-      type: fileType || "file",
-      url: fileUrl,
-      userId: userPayload.id,
-      uploadedAt: new Date().toISOString().split("T")[0],
-    };
-
-    const result = await db.collection("media").insertOne(mediaItem);
+    const mediaItem = await prisma.media.create({
+      data: {
+        name: fileName,
+        size: fileSize || "Unknown size",
+        type: fileType || "file",
+        url: fileUrl,
+        userId: userPayload.id,
+        uploadedAt: new Date().toISOString().split("T")[0],
+      }
+    });
 
     return NextResponse.json({
       success: true,
-      file: {
-        id: result.insertedId.toString(),
-        ...mediaItem
-      }
+      file: mediaItem
     }, { status: 201 });
 
   } catch (err: any) {

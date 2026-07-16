@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { apiClient } from "@/lib/axios";
+import axios from "axios";
+import React, { useState, useEffect } from "react";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { 
   Users, 
   FileText, 
@@ -37,75 +39,131 @@ interface MediaFile {
 }
 
 export default function DashboardPage() {
-  const { user, logout, updateProfile } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
   
   // Dashboard Section states
   const [activeSection, setActiveSection] = useState<"directory" | "profile" | "media">("directory");
   
   // Managers Directory states
-  const [managers, setManagers] = useState<Manager[]>([
-    { id: "m-1", firstName: "Julien", lastName: "Gauthier", email: "julien@zconnect.design", role: "Administrator", status: "Active" },
-    { id: "m-2", firstName: "Klara", lastName: "Svensson", email: "klara.s@zconnect.design", role: "Coordinator", status: "Active" },
-    { id: "m-3", firstName: "Marcus", lastName: "Vance", email: "marcus.v@zconnect.design", role: "Editor", status: "Pending" },
-  ]);
+  const [managers, setManagers] = useState<Manager[]>([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({ firstName: "", lastName: "", email: "", role: "Editor" as const });
   const [selectedManager, setSelectedManager] = useState<Manager | null>(null);
   
   // Media states
-  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([
-    { id: "f-1", name: "ZCN_brand_guidelines_2026.pdf", size: "2.4 MB", type: "pdf", uploadedAt: "2026-07-01" },
-    { id: "f-2", name: "editorial_shoot_fall.jpg", size: "4.8 MB", type: "image", uploadedAt: "2026-07-05" },
-    { id: "f-3", name: "TE_workspace_inspiration.png", size: "1.2 MB", type: "image", uploadedAt: "2026-07-09" },
-  ]);
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
   // Self Profile states
   const [profileForm, setProfileForm] = useState({
-    fullName: user?.fullName || "Avery Jenkins",
-    username: user?.username || "avery_jenkins",
-    avatar: user?.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80",
+    fullName: "",
+    username: "",
+    avatar: "",
   });
+
+  // Sync profileForm when user context resolves
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        fullName: user.fullName || "",
+        username: user.username || "",
+        avatar: user.imageUrl || "",
+      });
+
+      // Fetch profile from database to load the custom ImageKit avatar
+      apiClient.get("/api/user/me")
+        .then((res) => {
+          setProfileForm(prev => ({
+            ...prev,
+            fullName: res.data.fullName || prev.fullName,
+            username: res.data.username || prev.username,
+            avatar: res.data.avatarUrl || prev.avatar,
+          }));
+        })
+        .catch((err) => console.error("Error fetching database profile:", err));
+    }
+  }, [user]);
+
+  // Fetch directory and media data
+  useEffect(() => {
+    async function loadData() {
+      try {
+        if (activeSection === "directory") {
+          const res = await apiClient.get("/api/user/managers");
+          const mapped = res.data.map((m: any) => ({
+            id: m.id,
+            firstName: m.first_name,
+            lastName: m.last_name,
+            email: m.email,
+            role: m.role === "manager" ? "Editor" : m.role || "Editor",
+            status: m.status || "Active",
+          }));
+          setManagers(mapped);
+        } else if (activeSection === "media") {
+          const res = await apiClient.get("/api/aws/fetch-content");
+          setMediaFiles(res.data);
+        }
+      } catch (err: any) {
+        console.error("Error loading dashboard data:", err);
+        toast.error("Failed to load records from database.");
+      }
+    }
+    loadData();
+  }, [activeSection]);
 
   // Toggle Empty State for Managers Directory demonstration
   const [showEmptyState, setShowEmptyState] = useState(false);
 
   // Actions
-  const handleInviteManager = (e: React.FormEvent) => {
+  const handleInviteManager = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteForm.firstName || !inviteForm.lastName || !inviteForm.email) {
       toast.error("Required fields missing.");
       return;
     }
-    // Simulate check if email is already taken
-    if (managers.some(m => m.email.toLowerCase() === inviteForm.email.toLowerCase())) {
-      toast.error("That email is already registered to a manager.");
-      return;
+    try {
+      const res = await apiClient.post("/api/user/invite-manager", {
+        first_name: inviteForm.firstName,
+        last_name: inviteForm.lastName,
+        email: inviteForm.email.toLowerCase(),
+        password: "Password123!", // default stub password
+      });
+      const invited = res.data;
+      const newManager: Manager = {
+        id: invited.id,
+        firstName: invited.first_name,
+        lastName: invited.last_name,
+        email: invited.email,
+        role: invited.role || "Editor",
+        status: invited.status || "Pending",
+      };
+      setManagers([newManager, ...managers]);
+      setInviteForm({ firstName: "", lastName: "", email: "", role: "Editor" });
+      setShowInviteModal(false);
+      toast.success("Invitation dispatched", {
+        description: `Dispatched an invite token to ${newManager.email}.`
+      });
+    } catch (err: any) {
+      console.error("Invite manager error:", err);
+      toast.error(err.response?.data?.error || "Failed to invite manager.");
     }
-    const newManager: Manager = {
-      id: `m-${Date.now()}`,
-      firstName: inviteForm.firstName,
-      lastName: inviteForm.lastName,
-      email: inviteForm.email,
-      role: inviteForm.role,
-      status: "Pending",
-    };
-    setManagers([newManager, ...managers]);
-    setInviteForm({ firstName: "", lastName: "", email: "", role: "Editor" });
-    setShowInviteModal(false);
-    toast.success("Invitation dispatched", {
-      description: `Dispatched an invite token to ${newManager.email}.`
-    });
   };
 
-  const handleRemoveManager = (id: string) => {
-    setManagers(managers.filter(m => m.id !== id));
-    if (selectedManager?.id === id) {
-      setSelectedManager(null);
+  const handleRemoveManager = async (id: string) => {
+    try {
+      await apiClient.delete(`/api/user/${id}`);
+      setManagers(managers.filter(m => m.id !== id));
+      if (selectedManager?.id === id) {
+        setSelectedManager(null);
+      }
+      toast.success("Manager removed", {
+        description: "The manager's directory privileges have been revoked."
+      });
+    } catch (err: any) {
+      console.error("Remove manager error:", err);
+      toast.error("Failed to revoke manager privileges.");
     }
-    toast.success("Manager removed", {
-      description: "The manager's directory privileges have been revoked."
-    });
   };
 
   const handleUpdateManager = (updated: Manager) => {
@@ -114,58 +172,129 @@ export default function DashboardPage() {
     toast.success("Directory record updated.");
   };
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setProfileForm({ ...profileForm, avatar: event.target.result as string });
-          toast.success("Profile photo registered.");
+      
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        toast.error("Invalid file format. Please upload an image.");
+        return;
+      }
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File is too large. Limit is 5MB.");
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        // Update Clerk's profile photo globally across all active sessions/devices
+        if (user) {
+          await user.setProfileImage({ file });
         }
-      };
-      reader.readAsDataURL(file);
+
+        // Fetch signature from secure backend endpoint
+        const authRes = await apiClient.get("/api/imagekit/auth");
+        const { signature, token, expire } = authRes.data;
+
+        // Construct upload payload
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("fileName", file.name);
+        formData.append("publicKey", process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY || "");
+        formData.append("signature", signature);
+        formData.append("token", token);
+        formData.append("expire", expire.toString());
+        formData.append("folder", "/profile-pictures");
+
+        // Upload directly to ImageKit
+        const uploadRes = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData);
+        const imageUrl = uploadRes.data.url;
+
+        // Register profile photo in local database
+        await apiClient.post("/api/user/upload-image", { imageUrl });
+        setProfileForm({ ...profileForm, avatar: imageUrl });
+        toast.success("Profile photo registered successfully.");
+      } catch (err) {
+        console.error("Avatar upload error:", err);
+        toast.error("Failed to upload profile photo.");
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
-  const handleRemoveAvatar = () => {
-    setProfileForm({ ...profileForm, avatar: "" });
-    toast.success("Profile photo removed.");
+  const handleRemoveAvatar = async () => {
+    try {
+      await apiClient.delete("/api/user/remove-image");
+      setProfileForm({ ...profileForm, avatar: "" });
+      toast.success("Profile photo removed.");
+    } catch (err) {
+      toast.error("Failed to remove profile photo.");
+    }
   };
 
-  const handleUpdateSelfProfile = (e: React.FormEvent) => {
+  const handleUpdateSelfProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile(profileForm.fullName, profileForm.username);
-    toast.success("Your profile profile record has been synchronized.");
+    if (!user) return;
+    try {
+      const parts = profileForm.fullName.trim().split(/\s+/);
+      const firstName = parts[0] || "";
+      const lastName = parts.slice(1).join(" ") || "";
+      await user.update({
+        firstName,
+        lastName,
+        username: profileForm.username,
+      });
+      toast.success("Your profile record has been synchronized.");
+    } catch (err: any) {
+      console.error("Update profile error:", err);
+      toast.error(err.message || "Failed to sync profile settings.");
+    }
   };
 
-  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setIsUploading(true);
-      setTimeout(() => {
-        const newFile: MediaFile = {
-          id: `f-${Date.now()}`,
-          name: file.name,
-          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          type: file.type.includes("image") ? "image" : "pdf",
-          uploadedAt: new Date().toISOString().split("T")[0],
-        };
-        setMediaFiles([newFile, ...mediaFiles]);
-        setIsUploading(false);
+      try {
+        const fileName = file.name;
+        const fileSize = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+        const fileType = file.type.includes("image") ? "image" : "pdf";
+        const fileUrl = `https://s3.amazonaws.com/zconnect-bucket/${encodeURIComponent(file.name)}`;
+
+        const res = await apiClient.post("/api/aws/upload", {
+          fileName,
+          fileSize,
+          fileType,
+          fileUrl,
+        });
+
+        setMediaFiles([res.data.file, ...mediaFiles]);
         toast.success("File registered in media archive.");
-      }, 1000);
+      } catch (err) {
+        console.error("Upload error:", err);
+        toast.error("Failed to register media file.");
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
-  const handleDeleteMedia = (id: string) => {
-    setMediaFiles(mediaFiles.filter(f => f.id !== id));
-    toast.success("Media file archived.");
+  const handleDeleteMedia = async (id: string) => {
+    try {
+      await apiClient.delete(`/api/aws/file?id=${id}`);
+      setMediaFiles(mediaFiles.filter(f => f.id !== id));
+      toast.success("Media file archived.");
+    } catch (err) {
+      console.error("Delete media error:", err);
+      toast.error("Failed to delete media file.");
+    }
   };
 
   return (
     <div className="min-h-screen bg-bg-base flex flex-col md:flex-row text-text-primary paper-grain relative">
-      
       {/* Sidebar Navigation */}
       <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border-subtle bg-bg-surface p-6 flex flex-col justify-between relative z-10">
         <div className="space-y-8">
@@ -228,7 +357,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <button
-            onClick={() => logout()}
+            onClick={() => signOut({ redirectUrl: "/login" })}
             className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-accent-error hover:bg-accent-error/5 rounded transition-all cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5" />
@@ -236,7 +365,6 @@ export default function DashboardPage() {
           </button>
         </div>
       </aside>
-
       {/* Main Panel */}
       <main className="flex-1 p-6 md:p-12 relative z-10 flex flex-col justify-between">
         
@@ -276,7 +404,7 @@ export default function DashboardPage() {
             <>
               {showEmptyState || managers.length === 0 ? (
                 /* Editorial Empty State */
-                <div className="border border-dashed border-border-subtle rounded-xl p-12 text-center max-w-lg mx-auto my-12 bg-bg-surface/30">
+                (<div className="border border-dashed border-border-subtle rounded-xl p-12 text-center max-w-lg mx-auto my-12 bg-bg-surface/30">
                   <p className="text-lg font-display italic text-text-secondary mb-3">No managers listed in directory</p>
                   <p className="text-xs text-text-secondary/70 leading-relaxed max-w-sm mx-auto mb-6">
                     A directory record grants permission to upload resources, curate files, and handle user catalogs. Invite a administrator or editor to begin.
@@ -287,10 +415,10 @@ export default function DashboardPage() {
                   >
                     Send Invitation
                   </button>
-                </div>
+                </div>)
               ) : (
                 /* Populated State & Detail View Panel */
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                (<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   {/* Left Column: Manager list */}
                   <div className="lg:col-span-2 space-y-3">
                     <div className="border border-border-subtle bg-bg-surface rounded overflow-hidden">
@@ -331,7 +459,6 @@ export default function DashboardPage() {
                       </table>
                     </div>
                   </div>
-
                   {/* Right Column: Detailed Inspector Panel */}
                   <div className="border border-border-subtle bg-bg-surface rounded-xl p-6 relative">
                     {selectedManager ? (
@@ -374,7 +501,7 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </div>)
               )}
             </>
           )}
@@ -508,7 +635,6 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
-
       {/* Invite Manager Modal Container */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-text-primary/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -589,7 +715,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

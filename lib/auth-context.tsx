@@ -1,234 +1,340 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { authService } from "@/services/auth.service";
-import { ApiResponse, UserProfile } from "@/types/auth.types";
-import { LoginFields, SignupFields } from "@/schemas/auth.schema";
+import { useUser, useClerk, useSignIn, useSignUp } from "@clerk/nextjs";
 
 interface AuthContextType {
-  user: UserProfile | null;
-  accessToken: string | null;
+  user: any;
   isLoading: boolean;
-  login: (credentials: LoginFields) => Promise<ApiResponse>;
-  signup: (data: Omit<SignupFields, "confirmPassword" | "terms">) => Promise<ApiResponse>;
-  logout: () => Promise<ApiResponse>;
-  socialLogin: (provider: "google" | "apple", token: string) => Promise<ApiResponse>;
-  refreshSession: () => Promise<string | null>;
-  updateProfile: (fullName: string, username: string) => Promise<ApiResponse>;
-  changePassword: (oldPassword: string, newPassword: string) => Promise<ApiResponse>;
+  login: (credentials: any) => Promise<{ success: boolean; error?: string }>;
+  signup: (data: any) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (otp: string) => Promise<{ success: boolean; error?: string }>;
+  resendOtp: () => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  updateProfile: (fullName: string, username: string) => Promise<any>;
+  socialLogin: (provider: "google" | "apple", flow?: "signIn" | "signUp") => Promise<{ success: boolean; error?: string }>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  verifyResetOtp: (email: string, otp: string) => Promise<{ success: boolean; data?: { token: string }; error?: string }>;
+  resetPassword: (password: string, token: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const clerk = useClerk();
+  const { user: clerkUser, isLoaded: isUserLoaded } = useUser();
+  const { signIn } = useSignIn();
+  const { signUp } = useSignUp();
   const router = useRouter();
 
-  // Load initial tokens from localStorage (Client only)
+  const [user, setUser] = useState<any>(null);
+
+  // Sync user state
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedToken = localStorage.getItem("zconnect_access_token");
-      const storedUser = localStorage.getItem("zconnect_user");
-      if (storedToken && storedUser) {
-        setAccessToken(storedToken);
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (e) {
-          console.error("Error parsing stored user data");
-        }
+    if (isUserLoaded) {
+      if (clerkUser) {
+        setUser({
+          id: clerkUser.id,
+          email: clerkUser.primaryEmailAddress?.emailAddress || "",
+          username: clerkUser.username || "",
+          fullName: clerkUser.fullName || "",
+          avatarUrl: clerkUser.imageUrl || "",
+          createdAt: clerkUser.createdAt ? new Date(clerkUser.createdAt).toISOString() : "",
+        });
+      } else {
+        setUser(null);
       }
-      setIsLoading(false);
     }
-  }, []);
+  }, [clerkUser, isUserLoaded]);
 
-  // Listen to expired session events from axios interceptor
-  useEffect(() => {
-    const handleSessionExpired = () => {
-      setUser(null);
-      setAccessToken(null);
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("zconnect_access_token");
-        localStorage.removeItem("zconnect_refresh_token");
-        localStorage.removeItem("zconnect_user");
-      }
-      router.push("/login");
-    };
-
-    window.addEventListener("auth_session_expired", handleSessionExpired);
-    return () => {
-      window.removeEventListener("auth_session_expired", handleSessionExpired);
-    };
-  }, [router]);
-
-  // Refresh Session Action
-  const refreshSession = useCallback(async (): Promise<string | null> => {
-    if (typeof window === "undefined") return null;
-    
-    const refreshToken = localStorage.getItem("zconnect_refresh_token");
-    if (!refreshToken) return null;
-
-    try {
-      const res = await authService.refresh(refreshToken);
-      if (res.success && res.data) {
-        const { accessToken: newAccess, refreshToken: newRefresh, user: profile } = res.data;
-        setAccessToken(newAccess);
-        setUser(profile);
-        localStorage.setItem("zconnect_access_token", newAccess);
-        localStorage.setItem("zconnect_refresh_token", newRefresh);
-        localStorage.setItem("zconnect_user", JSON.stringify(profile));
-        return newAccess;
-      }
-    } catch (err) {
-      console.error("Failed to refresh session", err);
-    }
-
-    // Clear on failure
-    setUser(null);
-    setAccessToken(null);
-    localStorage.removeItem("zconnect_access_token");
-    localStorage.removeItem("zconnect_refresh_token");
-    localStorage.removeItem("zconnect_user");
-    return null;
-  }, []);
+  const isReady = isUserLoaded && !!signIn && !!signUp;
 
   // Login Action
-  const login = async (credentials: LoginFields) => {
+  const login = async (credentials: any) => {
+    if (!signIn) return { success: false, error: "Auth client not ready" };
+    
+    // Automatically terminate previous session if one exists on the device
+    if (clerk.session) {
+      try {
+        await clerk.signOut();
+      } catch (e) {
+        console.error("Error signing out previous session:", e);
+      }
+    }
+
     try {
-      const res = await authService.login(credentials);
-      if (res.success && res.data) {
-        const { accessToken: token, refreshToken: refresh, user: profile } = res.data;
-        setAccessToken(token);
-        setUser(profile);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("zconnect_access_token", token);
-          localStorage.setItem("zconnect_refresh_token", refresh);
-          localStorage.setItem("zconnect_user", JSON.stringify(profile));
+      const { error } = await (signIn as any).create({
+        identifier: credentials.username || credentials.email,
+        password: credentials.password,
+      });
+
+      if (error) {
+        const isExists = error.code === "session_exists" || error.message?.includes("session_exists");
+        if (isExists) {
+          try {
+            await clerk.signOut();
+            const retry = await (signIn as any).create({
+              identifier: credentials.username || credentials.email,
+              password: credentials.password,
+            });
+            if (retry.error) {
+              return { success: false, error: retry.error.longMessage || retry.error.message || "Login failed" };
+            }
+            if ((signIn as any).status === "complete") {
+              await clerk.setActive({ session: (signIn as any).createdSessionId });
+              return { success: true };
+            }
+          } catch (retryErr: any) {
+            return { success: false, error: retryErr.message || "Login failed" };
+          }
+        }
+        return { success: false, error: error.longMessage || error.message || "Login failed" };
+      }
+
+      if ((signIn as any).status === "complete") {
+        await clerk.setActive({ session: (signIn as any).createdSessionId });
+        return { success: true };
+      }
+      return { success: false, error: "Please complete authentication." };
+    } catch (err: any) {
+      const isExists = err?.errors?.some((e: any) => e.code === "session_exists") || err?.code === "session_exists" || err?.message?.includes("session_exists");
+      if (isExists) {
+        try {
+          await clerk.signOut();
+          const retry = await (signIn as any).create({
+            identifier: credentials.username || credentials.email,
+            password: credentials.password,
+          });
+          if ((signIn as any).status === "complete") {
+            await clerk.setActive({ session: (signIn as any).createdSessionId });
+            return { success: true };
+          }
+        } catch (retryErr: any) {
+          return { success: false, error: retryErr.errors?.[0]?.message || retryErr.message || "Login failed" };
         }
       }
-      return res;
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || error.message || "Login failed",
-      };
+      return { success: false, error: err.errors?.[0]?.message || err.message || "Login failed" };
     }
   };
 
   // Signup Action
-  const signup = async (data: Omit<SignupFields, "confirmPassword" | "terms">) => {
+  const signup = async (data: any) => {
+    if (!signUp) return { success: false, error: "Auth client not ready" };
     try {
-      const res = await authService.signup(data);
-      if (res.success && res.data && !res.data.verificationRequired) {
-        const { accessToken: token, refreshToken: refresh, user: profile } = res.data;
-        setAccessToken(token);
-        setUser(profile);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("zconnect_access_token", token);
-          localStorage.setItem("zconnect_refresh_token", refresh);
-          localStorage.setItem("zconnect_user", JSON.stringify(profile));
-        }
+      const { error } = await (signUp as any).create({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        username: data.username,
+        emailAddress: data.email,
+        password: data.password,
+      });
+
+      if (error) {
+        return { success: false, error: error.longMessage || error.message || "Signup failed" };
       }
-      return res;
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.error || error.response?.data?.message || error.message || "Signup failed",
-      };
+
+      // Prepare email code verification
+      const { error: prepError } = await (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" });
+      if (prepError) {
+        return { success: false, error: prepError.longMessage || prepError.message || "Failed to send verification code" };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.errors?.[0]?.message || err.message || "Signup failed" };
     }
   };
 
-  // Logout Action
+  // Verify OTP for Signup
+  const verifyOtp = async (otp: string) => {
+    if (!signUp) return { success: false, error: "Auth client not ready" };
+    try {
+      const { error } = await (signUp as any).attemptEmailAddressVerification({
+        code: otp,
+      });
+
+      if (error) {
+        return { success: false, error: error.longMessage || error.message || "Invalid code" };
+      }
+
+      if ((signUp as any).status === "complete") {
+        await clerk.setActive({ session: (signUp as any).createdSessionId });
+        return { success: true };
+      }
+      return { success: false, error: "Verification incomplete" };
+    } catch (err: any) {
+      return { success: false, error: err.errors?.[0]?.message || err.message || "Invalid code" };
+    }
+  };
+
+  // Resend OTP
+  const resendOtp = async () => {
+    if (!signUp) return { success: false, error: "Auth client not ready" };
+    try {
+      const { error } = await (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" });
+      if (error) {
+        return { success: false, error: error.longMessage || error.message || "Resend failed" };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.errors?.[0]?.message || err.message || "Resend failed" };
+    }
+  };
+
+  // Social Login / Signup using Clerk v7 .sso() method
+  const socialLogin = async (provider: "google" | "apple", flow: "signIn" | "signUp" = "signIn") => {
+    try {
+      const strategy = provider === "google" ? "oauth_google" : "oauth_apple";
+
+      const handleSessionExists = (err: any) => {
+        const isExists = err?.errors?.some((e: any) => e.code === "session_exists") || err?.code === "session_exists";
+        if (isExists) {
+          router.push("/dashboard");
+          return true;
+        }
+        return false;
+      };
+
+      if (flow === "signUp") {
+        if (!signUp) return { success: false, error: "Auth client not ready" };
+        const { error } = await (signUp as any).sso({
+          strategy,
+          redirectCallbackUrl: "/sso-callback",
+          redirectUrl: "/dashboard",
+        });
+        if (error) {
+          if (handleSessionExists(error)) {
+            return { success: true };
+          }
+          console.error("Social signup error:", JSON.stringify(error, null, 2));
+          return { success: false, error: error.longMessage || error.message || "Social signup failed" };
+        }
+      } else {
+        if (!signIn) return { success: false, error: "Auth client not ready" };
+        const { error } = await (signIn as any).sso({
+          strategy,
+          redirectCallbackUrl: "/sso-callback",
+          redirectUrl: "/dashboard",
+        });
+        if (error) {
+          if (handleSessionExists(error)) {
+            return { success: true };
+          }
+          console.error("Social login error:", JSON.stringify(error, null, 2));
+          return { success: false, error: error.longMessage || error.message || "Social login failed" };
+        }
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error("Social login exception:", err);
+      const isExists = err?.errors?.some((e: any) => e.code === "session_exists") || err?.code === "session_exists";
+      if (isExists) {
+        router.push("/dashboard");
+        return { success: true };
+      }
+      return { success: false, error: err.errors?.[0]?.longMessage || err.errors?.[0]?.message || err.message || "Social login failed" };
+    }
+  };
+
+  // Forgot Password (Request reset OTP)
+  const forgotPassword = async (email: string) => {
+    if (!signIn) return { success: false, error: "Auth client not ready" };
+    try {
+      const { error } = await (signIn as any).create({
+        strategy: "reset_password_email_code",
+        identifier: email,
+      });
+      if (error) {
+        return { success: false, error: error.longMessage || error.message || "Request failed" };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.errors?.[0]?.message || err.message || "Request failed" };
+    }
+  };
+
+  // Verify Reset OTP
+  const verifyResetOtp = async (email: string, otp: string) => {
+    if (!signIn) return { success: false, error: "Auth client not ready" };
+    try {
+      const { error } = await (signIn as any).attemptFirstFactor({
+        strategy: "reset_password_email_code",
+        code: otp,
+      });
+      if (error) {
+        return { success: false, error: error.longMessage || error.message || "Invalid OTP code" };
+      }
+      if ((signIn as any).status === "needs_new_password") {
+        return { success: true, data: { token: otp } };
+      }
+      return { success: false, error: "Verification incomplete" };
+    } catch (err: any) {
+      return { success: false, error: err.errors?.[0]?.message || err.message || "Invalid OTP code" };
+    }
+  };
+
+  // Reset Password
+  const resetPassword = async (password: string, _token: string) => {
+    if (!signIn) return { success: false, error: "Auth client not ready" };
+    try {
+      const { error } = await (signIn as any).resetPassword({
+        password: password,
+      });
+      if (error) {
+        return { success: false, error: error.longMessage || error.message || "Failed to reset password" };
+      }
+      if ((signIn as any).status === "complete") {
+        await clerk.setActive({ session: (signIn as any).createdSessionId });
+        return { success: true };
+      }
+      return { success: false, error: "Password reset incomplete" };
+    } catch (err: any) {
+      return { success: false, error: err.errors?.[0]?.message || err.message || "Failed to reset password" };
+    }
+  };
+
+  // Logout
   const logout = async () => {
-    try {
-      const res = await authService.logout();
-      return res;
-    } catch (error) {
-      console.error("Logout API call error, forcing local logout", error);
-    } finally {
-      setAccessToken(null);
-      setUser(null);
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("zconnect_access_token");
-        localStorage.removeItem("zconnect_refresh_token");
-        localStorage.removeItem("zconnect_user");
-      }
-      router.push("/login");
-    }
-    return { success: true };
+    await clerk.signOut();
+    router.push("/login");
   };
 
-  // Social Login Action
-  const socialLogin = async (provider: "google" | "apple", token: string) => {
-    try {
-      const serviceCall = provider === "google" ? authService.loginWithGoogle : authService.loginWithApple;
-      const res = await serviceCall(token);
-      if (res.success && res.data) {
-        const { accessToken: access, refreshToken: refresh, user: profile } = res.data;
-        setAccessToken(access);
-        setUser(profile);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("zconnect_access_token", access);
-          localStorage.setItem("zconnect_refresh_token", refresh);
-          localStorage.setItem("zconnect_user", JSON.stringify(profile));
-        }
-      }
-      return res;
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || error.message || "Social login failed",
-      };
-    }
-  };
-
-  // Update Profile Action
+  // Update Profile
   const updateProfile = async (fullName: string, username: string) => {
+    if (!clerkUser) return;
     try {
-      const res = await authService.updateProfile(fullName, username);
-      if (res.success && res.data) {
-        setUser(res.data);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("zconnect_user", JSON.stringify(res.data));
-        }
-      }
-      return res;
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || error.message || "Failed to update profile",
-      };
+      const parts = fullName.trim().split(/\s+/);
+      const firstName = parts[0] || "";
+      const lastName = parts.slice(1).join(" ") || "";
+      const updatedUser = await clerkUser.update({
+        firstName,
+        lastName,
+        username,
+      });
+      return { success: true, data: updatedUser };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Update failed" };
     }
   };
 
-  // Change Password Action
-  const changePassword = async (oldPassword: string, newPassword: string) => {
-    try {
-      const res = await authService.changePassword(oldPassword, newPassword);
-      return res;
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || error.message || "Failed to change password",
-      };
-    }
-  };
+  const isLoading = !isReady;
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        accessToken,
         isLoading,
         login,
         signup,
+        verifyOtp,
+        resendOtp,
         logout,
-        socialLogin,
-        refreshSession,
         updateProfile,
-        changePassword,
+        socialLogin,
+        forgotPassword,
+        verifyResetOtp,
+        resetPassword,
       }}
     >
       {children}

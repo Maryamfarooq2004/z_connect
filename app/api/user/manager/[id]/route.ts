@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/db";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -11,28 +10,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const { id } = await params;
-    const { db } = await connectToDatabase();
     
-    let manager;
-    try {
-      manager = await db.collection("users").findOne({ _id: new ObjectId(id) });
-    } catch (e) {
-      manager = await db.collection("users").findOne({ id: id });
-    }
+    const manager = await prisma.user.findUnique({
+      where: { id: id }
+    });
 
     if (!manager) {
       return NextResponse.json({ error: "Manager not found" }, { status: 404 });
     }
 
     return NextResponse.json({
-      id: manager._id.toString(),
-      first_name: manager.first_name || manager.fullName?.split(" ")[0] || "",
-      last_name: manager.last_name || manager.fullName?.split(" ")[1] || "",
-      fullName: manager.fullName || `${manager.first_name || ""} ${manager.last_name || ""}`.trim(),
+      id: manager.id,
+      first_name: manager.fullName?.split(" ")[0] || "",
+      last_name: manager.fullName?.split(" ")[1] || "",
+      fullName: manager.fullName || "",
       email: manager.email,
-      role: manager.role || "manager",
-      status: manager.status || "Active",
-      createdAt: manager.createdAt,
+      role: "Editor",
+      status: "Active",
+      createdAt: manager.createdAt.toISOString(),
     }, { status: 200 });
 
   } catch (err: any) {

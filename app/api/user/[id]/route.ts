@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/db";
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,21 +11,14 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const { id } = await params;
     
-    // Check privileges: users can delete their own accounts, or admins can delete any
-    if (userPayload.id !== id && userPayload.role !== "admin") {
+    // Check privileges: users can delete their own accounts
+    if (userPayload.id !== id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { db } = await connectToDatabase();
-    
-    let query = {};
-    try {
-      query = { _id: new ObjectId(id) };
-    } catch (e) {
-      query = { id: id };
-    }
-
-    await db.collection("users").deleteOne(query);
+    await prisma.user.delete({
+      where: { id: id }
+    });
 
     return NextResponse.json({ success: true, message: "User deleted successfully" }, { status: 200 });
 

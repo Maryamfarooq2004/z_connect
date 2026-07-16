@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { authService } from "@/services/auth.service";
+import { useAuth } from "@/lib/auth-context";
 import { resetPasswordSchema, ResetPasswordFields } from "@/schemas/auth.schema";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { AuthCard } from "@/components/auth/AuthCard";
@@ -14,6 +14,7 @@ import { PasswordStrength } from "@/components/auth/PasswordStrength";
 import { PrimaryButton } from "@/components/ui/Buttons";
 
 function ResetPasswordForm() {
+  const { resetPassword } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -45,7 +46,7 @@ function ResetPasswordForm() {
 
     setIsLoading(true);
     try {
-      const response = await authService.resetPassword(data.password, token);
+      const response = await resetPassword(data.password, token);
       if (response.success) {
         toast.success("Password reset completed!", {
           description: "New password registered successfully.",

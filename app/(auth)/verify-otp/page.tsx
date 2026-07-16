@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { authService } from "@/services/auth.service";
+import { useAuth } from "@/lib/auth-context";
 import { verifyOtpSchema, VerifyOtpFields } from "@/schemas/auth.schema";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { AuthCard } from "@/components/auth/AuthCard";
@@ -18,6 +18,7 @@ function VerifyOtpForm() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
 
+  const { verifyOtp, resendOtp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
@@ -49,17 +50,15 @@ function VerifyOtpForm() {
     
     setIsLoading(true);
     try {
-      const response = await authService.verifyResetOtp(email, data.otp);
-      if (response.success && response.data) {
-        toast.success("Code validated!", {
-          description: "Proceeding to set your new password.",
+      const response = await verifyOtp(data.otp);
+      if (response.success) {
+        toast.success("Account verified successfully!", {
+          description: "Proceeding to your dashboard.",
         });
-        router.push(
-          `/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(response.data.token)}`
-        );
+        router.push("/dashboard");
       } else {
         toast.error("Validation failed", {
-          description: response.error || "Incorrect OTP. Try mock code '123456'.",
+          description: response.error || "Incorrect OTP. Please try again.",
         });
       }
     } catch (err) {
@@ -73,7 +72,7 @@ function VerifyOtpForm() {
     if (resendCooldown > 0 || !email) return;
     setIsLoading(true);
     try {
-      const response = await authService.forgotPassword(email);
+      const response = await resendOtp();
       if (response.success) {
         toast.success("Verification dispatched!", {
           description: `Dispatched new recovery OTP to ${email}.`,

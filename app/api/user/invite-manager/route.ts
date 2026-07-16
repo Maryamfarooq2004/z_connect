@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/db";
+import { createClerkClient } from "@clerk/nextjs/server";
 
 export async function POST(req: Request) {
   try {
@@ -10,7 +10,6 @@ export async function POST(req: Request) {
       return unauthorizedResponse();
     }
 
-    // Role check if needed, managers are invited by users or admins
     const body = await req.json();
     const { first_name, last_name, email, password } = body;
 
@@ -18,44 +17,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    
-    // Check if manager email already exists
-    const existing = await db.collection("users").findOne({ email: email.toLowerCase() });
+    const normalizedEmail = email.toLowerCase();
+
+    // Check if manager email already exists in local DB
+    const existing = await prisma.user.findUnique({
+      where: { email: normalizedEmail }
+    });
     if (existing) {
       return NextResponse.json({ error: "Email is already registered" }, { status: 409 });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Initialize Clerk Backend Client
+    const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
-    const newManager = {
-      first_name,
-      last_name,
-      email: email.toLowerCase(),
-      username: email.split("@")[0],
-      password: hashedPassword,
-      role: "manager", // set role to manager
-      status: "Pending", // initial state as pending
-      invited_by: userPayload.id,
-      invited_at: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      email_verified: false,
-      avatarUrl: "",
-    };
+    // Create user inside Clerk
+    const clerkUser = await clerkClient.users.createUser({
+      emailAddress: [normalizedEmail],
+      password: password,
+      firstName: first_name,
+      lastName: last_name,
+      username: normalizedEmail.split("@")[0],
+    });
 
-    const result = await db.collection("users").insertOne(newManager);
+    // Create local user profile record linked to the new Clerk User ID
+    const newManager = await prisma.user.create({
+      data: {
+        clerkId: clerkUser.id,
+        email: normalizedEmail,
+        username: clerkUser.username || normalizedEmail.split("@")[0],
+        fullName: `${first_name} ${last_name}`.trim(),
+        profileImage: clerkUser.imageUrl || "",
+        bio: "",
+      }
+    });
 
     return NextResponse.json({
-      id: result.insertedId.toString(),
-      first_name: newManager.first_name,
-      last_name: newManager.last_name,
+      id: newManager.id,
+      first_name,
+      last_name,
       email: newManager.email,
-      role: newManager.role,
-      status: newManager.status,
+      role: "Editor",
+      status: "Active",
     }, { status: 201 });
 
   } catch (err: any) {
     console.error("Invite Manager Error:", err);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Failed to invite manager" }, { status: 500 });
   }
 }

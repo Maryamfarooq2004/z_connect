@@ -13,10 +13,11 @@ import { AuthCard } from "@/components/auth/AuthCard";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
-import { PrimaryButton } from "@/components/ui/Buttons";
+import { PrimaryButton, Divider } from "@/components/ui/Buttons";
+import { SocialButton } from "@/components/ui/SocialButton";
 
 export default function SignupPage() {
-  const { signup } = useAuth();
+  const { signup, socialLogin } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,7 +29,8 @@ export default function SignupPage() {
   } = useForm<SignupFields>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      fullName: "",
+      firstName: "",
+      lastName: "",
       username: "",
       email: "",
       password: "",
@@ -48,10 +50,10 @@ export default function SignupPage() {
         toast.success("Registration initiated!", {
           description: "A verification dispatch has been sent to your inbox.",
         });
-        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+        router.push(`/verify-otp?email=${encodeURIComponent(data.email)}`);
       } else {
         toast.error("Registration failed", {
-          description: response.error || response.message || "Please verify credentials and try again.",
+          description: response.error || "Please verify credentials and try again.",
         });
       }
     } catch (err: any) {
@@ -59,6 +61,20 @@ export default function SignupPage() {
         description: err?.message || "An unexpected error occurred.",
       });
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: "google" | "apple") => {
+    setIsLoading(true);
+    try {
+      const response = await socialLogin(provider, "signUp");
+      if (!response.success) {
+        toast.error(response.error || "OAuth registration failed.");
+        setIsLoading(false);
+      }
+    } catch (err) {
+      toast.error("Social login encountered an error.");
       setIsLoading(false);
     }
   };
@@ -77,17 +93,31 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-mono uppercase tracking-widest text-text-secondary pl-0.5">
-              Full Name
-            </label>
-            <Input
-              type="text"
-              placeholder="e.g. Avery Jenkins"
-              error={errors.fullName?.message}
-              disabled={isLoading}
-              {...register("fullName")}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-mono uppercase tracking-widest text-text-secondary pl-0.5">
+                First Name
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Avery"
+                error={errors.firstName?.message}
+                disabled={isLoading}
+                {...register("firstName")}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-mono uppercase tracking-widest text-text-secondary pl-0.5">
+                Last Name
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Jenkins"
+                error={errors.lastName?.message}
+                disabled={isLoading}
+                {...register("lastName")}
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -171,10 +201,28 @@ export default function SignupPage() {
             )}
           </div>
 
+          {/* Clerk Bot Protection CAPTCHA Mount Point */}
+          <div id="clerk-captcha" />
+
           <PrimaryButton type="submit" isLoading={isLoading} className="mt-4">
             Initialize Account
           </PrimaryButton>
         </form>
+
+        <Divider label="OAuth Credentials" />
+
+        <div className="grid grid-cols-2 gap-3">
+          <SocialButton
+            provider="google"
+            onClick={() => handleSocialLogin("google")}
+            disabled={isLoading}
+          />
+          <SocialButton
+            provider="apple"
+            onClick={() => handleSocialLogin("apple")}
+            disabled={isLoading}
+          />
+        </div>
 
         <p className="mt-8 text-center text-xs font-mono uppercase tracking-widest text-text-secondary">
           Have an account?{" "}

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { authService } from "@/services/auth.service";
+import { useAuth } from "@/lib/auth-context";
 import { forgotPasswordSchema, ForgotPasswordFields } from "@/schemas/auth.schema";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { AuthCard } from "@/components/auth/AuthCard";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/Input";
 import { PrimaryButton } from "@/components/ui/Buttons";
 
 export default function ForgotPasswordPage() {
+  const { forgotPassword } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -31,7 +32,7 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (data: ForgotPasswordFields) => {
     setIsLoading(true);
     try {
-      const response = await authService.forgotPassword(data.email);
+      const response = await forgotPassword(data.email);
       if (response.success) {
         toast.success("Verification dispatched!", {
           description: `Dispatched an OTP code to ${data.email}.`,

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuthRequest, unauthorizedResponse } from "@/lib/auth-middleware";
-import { connectToDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import { prisma } from "@/lib/db";
 
 export async function DELETE(req: Request) {
   try {
@@ -10,15 +9,10 @@ export async function DELETE(req: Request) {
       return unauthorizedResponse();
     }
 
-    const { db } = await connectToDatabase();
-    let query = {};
-    try {
-      query = { _id: new ObjectId(userPayload.id) };
-    } catch (e) {
-      query = { id: userPayload.id };
-    }
-
-    await db.collection("users").updateOne(query, { $set: { avatarUrl: "" } });
+    await prisma.user.update({
+      where: { id: userPayload.id },
+      data: { profileImage: "" }
+    });
 
     return NextResponse.json({ success: true, message: "Avatar image removed" }, { status: 200 });
 

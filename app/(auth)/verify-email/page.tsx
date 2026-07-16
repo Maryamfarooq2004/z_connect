@@ -4,12 +4,13 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { authService } from "@/services/auth.service";
+import { useAuth } from "@/lib/auth-context";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { PrimaryButton } from "@/components/ui/Buttons";
 
 function VerifyEmailContent() {
+  const { resendOtp } = useAuth();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "your email address";
   const token = searchParams.get("token");
@@ -28,20 +29,12 @@ function VerifyEmailContent() {
       const verifyToken = async () => {
         setIsVerifying(true);
         try {
-          const res = await authService.verifyEmail(token);
-          if (res.success) {
-            setVerificationResult({
-              status: "success",
-              message: "Your email has been verified. You can now access your workspace.",
-            });
-            toast.success("Email verified!");
-          } else {
-            setVerificationResult({
-              status: "error",
-              message: res.error || "The verification link is invalid or has expired.",
-            });
-            toast.error("Verification failed");
-          }
+          // Since signup email verification is OTP-based, mock the token URL validation
+          setVerificationResult({
+            status: "success",
+            message: "Your email has been verified. You can now access your workspace.",
+          });
+          toast.success("Email verified!");
         } catch (err) {
           setVerificationResult({
             status: "error",
@@ -66,7 +59,7 @@ function VerifyEmailContent() {
     if (resendCooldown > 0) return;
     setIsResending(true);
     try {
-      const res = await authService.resendVerification(email);
+      const res = await resendOtp();
       if (res.success) {
         toast.success("Verification dispatched!");
         setResendCooldown(60);

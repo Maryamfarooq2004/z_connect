@@ -1,6 +1,7 @@
 "use client";
 
 import { apiClient } from "@/lib/axios";
+import axios from "axios";
 import React, { useState, useEffect } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { 
@@ -69,6 +70,18 @@ export default function DashboardPage() {
         username: user.username || "",
         avatar: user.imageUrl || "",
       });
+
+      // Fetch profile from database to load the custom ImageKit avatar
+      apiClient.get("/api/user/me")
+        .then((res) => {
+          setProfileForm(prev => ({
+            ...prev,
+            fullName: res.data.fullName || prev.fullName,
+            username: res.data.username || prev.username,
+            avatar: res.data.avatarUrl || prev.avatar,
+          }));
+        })
+        .catch((err) => console.error("Error fetching database profile:", err));
     }
   }, [user]);
 
@@ -162,20 +175,53 @@ export default function DashboardPage() {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        if (event.target?.result) {
-          const base64Url = event.target.result as string;
-          try {
-            await apiClient.post("/api/user/upload-image", { imageUrl: base64Url });
-            setProfileForm({ ...profileForm, avatar: base64Url });
-            toast.success("Profile photo registered.");
-          } catch (err) {
-            toast.error("Failed to update profile photo.");
-          }
+      
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        toast.error("Invalid file format. Please upload an image.");
+        return;
+      }
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File is too large. Limit is 5MB.");
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        // Update Clerk's profile photo globally across all active sessions/devices
+        if (user) {
+          await user.setProfileImage({ file });
         }
-      };
-      reader.readAsDataURL(file);
+
+        // Fetch signature from secure backend endpoint
+        const authRes = await apiClient.get("/api/imagekit/auth");
+        const { signature, token, expire } = authRes.data;
+
+        // Construct upload payload
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("fileName", file.name);
+        formData.append("publicKey", process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY || "");
+        formData.append("signature", signature);
+        formData.append("token", token);
+        formData.append("expire", expire.toString());
+        formData.append("folder", "/profile-pictures");
+
+        // Upload directly to ImageKit
+        const uploadRes = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData);
+        const imageUrl = uploadRes.data.url;
+
+        // Register profile photo in local database
+        await apiClient.post("/api/user/upload-image", { imageUrl });
+        setProfileForm({ ...profileForm, avatar: imageUrl });
+        toast.success("Profile photo registered successfully.");
+      } catch (err) {
+        console.error("Avatar upload error:", err);
+        toast.error("Failed to upload profile photo.");
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
